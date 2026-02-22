@@ -3,7 +3,7 @@
 > **Applied Thermodynamics · University of Lagos (UNILAG)**  
 > An interactive thermodynamic simulation dashboard for an Anaerobic Digestion – Hydrothermal Carbonization (AD-HTC) biomass power plant.
 
-🔗 **Live Demo:** [yourusername.github.io/meg315-dashboard](https://yourusername.github.io/meg315-dashboard)
+
 
 ---
 
@@ -11,7 +11,7 @@
 
 This dashboard was built as part of MEG 315 — Applied Thermodynamics at the University of Lagos. It simulates and visualises the thermodynamic behaviour of an integrated AD-HTC biorefinery system, based on the methodology of:
 
-> Potrč, S., Petrovič, A., Egieya, J. M., & Čuček, L. (2025). Valorization of biomass through anaerobic digestion and hydrothermal carbonization: Integrated process flowsheet and supply chain network optimization. *Energies, 18*(2), 334. https://doi.org/10.3390/en18020334
+
 
 ---
 
@@ -45,7 +45,7 @@ This dashboard was built as part of MEG 315 — Applied Thermodynamics at the Un
 
 ## How to Use
 
-1. Open the [live link](https://yourusername.github.io/meg315-dashboard) in any browser
+1. Open the [live link] in any browser
 2. Select a **feedstock** from the dropdown
 3. Adjust sliders in the sidebar:
    - Feedstock mass flow rate
@@ -72,7 +72,7 @@ No installation required — runs entirely in the browser.
 
 ## Based On
 
-This dashboard contextualises the supply chain and process flowsheet optimisation methodology of Potrč et al. (2025) within the thermodynamic framework of MEG 315, including:
+This dashboard contextualises the supply chain and process flowsheet optimisation methodology within the thermodynamic framework of MEG 315, including:
 
 - Otto cycle analysis for biogas-fuelled CHP units
 - Rankine/ORC cycle for waste heat recovery
@@ -81,12 +81,4 @@ This dashboard contextualises the supply chain and process flowsheet optimisatio
 
 ---
 
-## Author
 
-**Light** — Strategic Services Analyst & MEG 315 Student  
-University of Lagos · Department of Mechanical Engineering  
-February 2026
-
----
-
-*Built for academic purposes as part of MEG 315 — Applied Thermodynamics coursework.*
