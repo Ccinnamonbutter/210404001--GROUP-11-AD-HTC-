@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AD-HTC Biomass Power Plant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep:  #080612;
+            --bg-panel: rgba(14, 10, 26, 0.98);
+            --border:   #2a1f45;
+            --accent:   #c4b5fd;
+            --accent2:  #a78bfa;
+            --warn:     #f59e0b;
+            --danger:   #ef4444;
+            --purple:   #7c3aed;
+            --text:     #e2d9f3;
+            --muted:    #a89fc0;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(ellipse at 15% 25%, rgba(124,58,237,0.08) 0%, transparent 55%),
+                radial-gradient(ellipse at 85% 75%, rgba(167,139,250,0.06) 0%, transparent 55%),
+                radial-gradient(ellipse at 50% 50%, rgba(88,28,135,0.04) 0%, transparent 70%);
+        }
+        .glass {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+        }
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a78bfa' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px !important;
+        }
+        select option { background: #110d22; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+        input[type=range] { accent-color: var(--accent2); }
+
+        .kpi-card { position: relative; overflow: hidden; }
+        .kpi-card::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(124,58,237,0.06) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        .section-tag {
+            display: inline-block;
+            font-size: 11px; font-weight: 700;
+            letter-spacing: 0.15em; text-transform: uppercase;
+            padding: 2px 8px; border-radius: 2px; margin-bottom: 12px;
+        }
+        .flow-box {
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 8px 12px; font-size: 12px; text-align: center;
+            font-weight: 700; letter-spacing: 0.05em;
+        }
+        .flow-arrow { color: var(--muted); font-size: 16px; line-height: 1; align-self: center; }
+        .badge-surplus { background: rgba(196,181,253,0.1); color: var(--accent);  border: 1px solid rgba(196,181,253,0.25); }
+        .badge-deficit  { background: rgba(239,68,68,0.12);  color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+<!-- HEADER -->
+<header class="glass border-b border-[#2a1f45] px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+    <div>
+        <div class="flex items-center gap-3">
+            <div class="w-2 h-2 rounded-full pulse" style="background:var(--accent2);"></div>
+            <h1 style="font-family:'Space Grotesk',sans-serif; color:var(--accent);" class="text-lg font-bold tracking-tight">
+                MEG 315
+            </h1>
+        </div>
+        <p class="text-xs uppercase tracking-widest mt-0.5" style="color:#c4b5fd;">
+            UNILAG · Applied Thermodynamics · AD-HTC Integrated Biorefinery Model
+        </p>
+    </div>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+
+<!-- SIDEBAR -->
+<aside class="w-80 glass border-r border-[#2a1f45] p-5 overflow-y-auto flex-shrink-0">
+
+    <!-- ── FEEDSTOCK ─────────────────────────────── -->
+    <p class="section-tag" style="background:rgba(196,181,253,0.08); color:var(--accent);">Feedstock</p>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(196,181,253,0.5);">Biomass Type</label>
+        <select id="biomass_type" class="w-full rounded p-2 text-xs outline-none cursor-pointer"
+            style="background:#110d22; border:1px solid #2a1f45; color:var(--accent);"></select>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(196,181,253,0.5);">
+            Feedstock Rate &mdash; <em>&#7745;</em><sub>feed</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="feed_rate" type="number" value="10" min="0.1" step="0.1"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:var(--accent);">
+            <span class="text-xs w-12" style="color:#b8afd4;">t / day</span>
+        </div>
+    </div>
+
+    <div class="my-4 border-t" style="border-color:#2a1f45;"></div>
+
+    <!-- ── GAS CYCLE (BIOGAS ICE) ──────────────────── -->
+    <p class="section-tag" style="background:rgba(245,158,11,0.08); color:var(--warn);">Biogas ICE &mdash; Gas Cycle</p>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(245,158,11,0.55);">
+            Ambient Pressure &mdash; P<sub>1</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="p1" type="number" value="101.325" min="50" step="0.001"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:var(--warn);">
+            <span class="text-xs w-12" style="color:#b8afd4;">kPa</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(245,158,11,0.55);">
+            Ambient Temperature &mdash; T<sub>1</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="t1" type="number" value="298.15" min="250" max="320" step="0.1"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:var(--warn);">
+            <span class="text-xs w-12" style="color:#b8afd4;">K</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(245,158,11,0.55);">
+            Air Mass Flow Rate &mdash; &#7745;<sub>air</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="mass_flow_air" type="number" value="100" min="1" step="1"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:var(--warn);">
+            <span class="text-xs w-12" style="color:#b8afd4;">kg / s</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(245,158,11,0.55);">
+            Pressure Ratio &mdash; r<sub>p</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="r_p" type="number" value="10" min="2" max="40" step="0.5"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:var(--warn);">
+            <span class="text-xs w-12" style="color:#b8afd4;">&mdash;</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(245,158,11,0.55);">
+            Turbine Inlet Temp &mdash; T<sub>3</sub> (TIT)
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="tit" type="number" value="1200" min="800" max="1600" step="10"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:var(--warn);">
+            <span class="text-xs w-12" style="color:#b8afd4;">K</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(245,158,11,0.55);">
+            Compressor Efficiency &mdash; &eta;<sub>c</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="eta_c" type="number" value="0.86" min="0.5" max="1.0" step="0.01"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:var(--warn);">
+            <span class="text-xs w-12" style="color:#b8afd4;">&mdash;</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(245,158,11,0.55);">
+            Turbine Efficiency &mdash; &eta;<sub>t</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="eta_t" type="number" value="0.88" min="0.5" max="1.0" step="0.01"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:var(--warn);">
+            <span class="text-xs w-12" style="color:#b8afd4;">&mdash;</span>
+        </div>
+    </div>
+
+    <div class="my-4 border-t" style="border-color:#2a1f45;"></div>
+
+    <!-- ── STEAM CYCLE (RANKINE) ─────────────────── -->
+    <p class="section-tag" style="background:rgba(96,165,250,0.08); color:#60a5fa;">Steam Cycle &mdash; Rankine</p>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(96,165,250,0.55);">
+            Boiler Pressure &mdash; P<sub>boiler</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="p_boiler" type="number" value="60" min="1" max="200" step="1"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:#60a5fa;">
+            <span class="text-xs w-12" style="color:#b8afd4;">bar</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(96,165,250,0.55);">
+            Steam Temperature &mdash; T<sub>steam</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="t_steam" type="number" value="500" min="200" max="600" step="5"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:#60a5fa;">
+            <span class="text-xs w-12" style="color:#b8afd4;">&deg;C</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(96,165,250,0.55);">
+            Condenser Pressure &mdash; P<sub>cond</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="p_cond" type="number" value="0.06" min="0.01" max="1" step="0.01"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:#60a5fa;">
+            <span class="text-xs w-12" style="color:#b8afd4;">bar</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(96,165,250,0.55);">
+            Steam Turbine Efficiency &mdash; &eta;<sub>st</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="eta_st" type="number" value="0.85" min="0.5" max="1.0" step="0.01"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:#60a5fa;">
+            <span class="text-xs w-12" style="color:#b8afd4;">&mdash;</span>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-1" style="color:rgba(96,165,250,0.55);">
+            Feed Pump Efficiency &mdash; &eta;<sub>p</sub>
+        </label>
+        <div class="flex gap-2 items-center">
+            <input id="eta_p" type="number" value="0.80" min="0.5" max="1.0" step="0.01"
+                class="flex-1 rounded p-2 text-sm outline-none"
+                style="background:#110d22; border:1px solid #2a1f45; color:#60a5fa;">
+            <span class="text-xs w-12" style="color:#b8afd4;">&mdash;</span>
+        </div>
+    </div>
+
+    <div class="my-4 border-t" style="border-color:#2a1f45;"></div>
+
+    <!-- ── HTC REACTOR ─────────────────────────────── -->
+    <p class="section-tag" style="background:rgba(167,139,250,0.08); color:#a78bfa;">HTC Reactor</p>
+
+    <div class="mb-3">
+        <label class="block text-xs font-bold uppercase mb-2" style="color:rgba(167,139,250,0.55);">
+            Operating Temperature &mdash; T<sub>HTC</sub>: <span id="htc_temp_display" class="text-white">220</span>°C
+        </label>
+        <input id="htc_temp_input" type="range" min="180" max="260" value="220" step="5" class="w-full"
+               style="accent-color:#a78bfa;"
+               oninput="document.getElementById('htc_temp_display').textContent = this.value">
+        <div class="flex justify-between text-xs mt-1" style="color:#b8afd4;">
+            <span>180°C</span><span>220°C (default)</span><span>260°C</span>
+        </div>
+    </div>
+
+    <button onclick="runAnalysis()"
+        class="w-full mt-5 font-bold py-3 rounded-lg transition-all active:scale-95 text-sm tracking-widest uppercase"
+        style="background:linear-gradient(135deg,#5b21b6,#7c3aed); color:#ede9fe; border:1px solid #6d28d9;">
+        ANALYSE PLANT
+    </button>
+
+    <div class="mt-5 p-3 rounded-lg text-xs leading-relaxed" style="background:#0d0a1f; border:1px solid #2a1f45; color:#b8afd4;">
+        <p class="font-bold mb-1" style="color:var(--accent);">FIXED ASSUMPTIONS</p>
+        <p>c<sub>p,air</sub>: 1.005 kJ/kg&middot;K | c<sub>p,gas</sub>: 1.148 kJ/kg&middot;K</p>
+        <p>&gamma;<sub>c</sub>: 1.4 | &gamma;<sub>t</sub>: 1.33 | R<sub>air</sub>: 0.287 kJ/kg&middot;K</p>
+        <p>AD: VS destruction 60% | Biogas &rho;: 1.2 kg/m&sup3;</p>
+        <p>CH&#8324; LHV: 35.8 MJ/m&sup3; | c<sub>p,dig</sub>: 4.0 kJ/kg&middot;K</p>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<main class="flex-1 p-5 overflow-y-auto space-y-5">
+
+    <!-- Feedstock banner -->
+    <div id="feedstock-banner" class="hidden glass rounded-xl p-4 flex flex-wrap gap-6 items-center">
+        <div>
+            <p class="text-xs uppercase" style="color:#b8afd4;">Selected Feedstock</p>
+            <p id="banner-name" class="text-sm font-bold" style="color:var(--accent); font-family:'Space Grotesk',sans-serif;"></p>
+        </div>
+        <div><p class="text-xs uppercase" style="color:#b8afd4;">Total Solids</p><p id="banner-ts" class="font-bold text-white text-sm"></p></div>
+        <div><p class="text-xs uppercase" style="color:#b8afd4;">Volatile Solids</p><p id="banner-vs" class="font-bold text-white text-sm"></p></div>
+        <div><p class="text-xs uppercase" style="color:#b8afd4;">Biogas Yield</p><p id="banner-by" class="font-bold text-white text-sm"></p></div>
+        <div><p class="text-xs uppercase" style="color:#b8afd4;">CH₄ Content</p><p id="banner-ch4" class="font-bold text-white text-sm"></p></div>
+        <div><p class="text-xs uppercase" style="color:#b8afd4;">Hydrochar Yield</p><p id="banner-htc" class="font-bold text-white text-sm"></p></div>
+    </div>
+
+    <!-- KPI grid -->
+    <div id="kpi-panel" class="hidden grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+
+    <!-- Energy + Mass charts -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-xs uppercase mb-1" style="color:#b8afd4;">Energy Distribution (kW)</h3>
+            <p class="text-xs mb-3" style="color:#2a1f45;">Biogas → Electrical · Thermal · Losses</p>
+            <canvas id="energyChart" height="260"></canvas>
+        </div>
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-xs uppercase mb-1" style="color:#b8afd4;">Daily Mass Balance (kg/day)</h3>
+            <p class="text-xs mb-3" style="color:#2a1f45;">Feedstock → Biogas · Digestate → Hydrochar</p>
+            <canvas id="massChart" height="260"></canvas>
+        </div>
+    </div>
+
+    <!-- Mollier h-s + T-s diagrams -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-xs uppercase mb-1" style="color:#b8afd4;">h-s Mollier Diagram (Rankine — Steam Cycle)</h3>
+            <p class="text-xs mb-3" style="color:#2a1f45;">Enthalpy vs Entropy — A: Pump In · B: Pump Out · C: Turbine In · D: Turbine Out</p>
+            <canvas id="hsChart" height="280"></canvas>
+        </div>
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-xs uppercase mb-1" style="color:#b8afd4;">T-s Diagram (Biogas ICE — Internal Combustion Engine)</h3>
+            <p class="text-xs mb-3" style="color:#2a1f45;">Temperature vs Entropy — 1: Inlet · 2: Comp Out · 3: Combustion · 4: Exhaust</p>
+            <canvas id="tsChart" height="280"></canvas>
+        </div>
+    </div>
+
+    <!-- Heat integration -->
+    <div class="glass rounded-xl p-4">
+        <h3 class="text-xs uppercase mb-1" style="color:#b8afd4;">Heat Integration Balance (kW)</h3>
+        <p class="text-xs mb-4" style="color:#2a1f45;">Available waste heat vs AD reactor + HTC process demand</p>
+
+        <!-- Chart — full width -->
+        <canvas id="heatChart" height="160"></canvas>
+
+        <!-- Summary cards — 4 across below chart -->
+        <div id="heat-summary" class="hidden grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+            <div class="rounded-lg p-3 text-[10px]" id="heat-badge">
+                <p class="font-bold uppercase tracking-wide text-[9px]" id="heat-label"></p>
+                <p id="heat-value" class="text-xl font-bold mt-1" style="font-family:'Space Grotesk',sans-serif;"></p>
+                <p class="text-xs mt-1 opacity-60" id="heat-sub"></p>
+            </div>
+            <div class="rounded-lg p-3 text-[10px]" style="background:rgba(255,255,255,0.02); border:1px solid #2a1f45;">
+                <p class="text-xs uppercase tracking-wide" style="color:#b8afd4;">Thermal Available</p>
+                <p id="h-avail" class="text-xl font-bold text-white mt-1" style="font-family:'Space Grotesk',sans-serif;"></p>
+            </div>
+            <div class="rounded-lg p-3 text-[10px]" style="background:rgba(255,255,255,0.02); border:1px solid #2a1f45;">
+                <p class="text-xs uppercase tracking-wide" style="color:#b8afd4;">AD Demand</p>
+                <p id="h-ad" class="text-xl font-bold text-white mt-1" style="font-family:'Space Grotesk',sans-serif;"></p>
+            </div>
+            <div class="rounded-lg p-3 text-[10px]" style="background:rgba(255,255,255,0.02); border:1px solid #2a1f45;">
+                <p class="text-xs uppercase tracking-wide" style="color:#b8afd4;">HTC Demand</p>
+                <p id="h-htc" class="text-xl font-bold text-white mt-1" style="font-family:'Space Grotesk',sans-serif;"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Animated Schematic -->
+    <div class="glass rounded-xl p-4">
+        <h3 class="text-xs uppercase mb-1" style="color:#b8afd4;">Animated Process Schematic</h3>
+        <p class="text-xs mb-4" style="color:#2a1f45;">Live flow: Biomass → AD Reactor → Biogas CHP → Power | Digestate → HTC → Hydrochar</p>
+        <div style="overflow-x:auto;">
+        <svg id="schematic-svg" viewBox="0 0 920 340" xmlns="http://www.w3.org/2000/svg"
+             style="width:100%;min-width:700px;height:auto;font-family:'Inter',sans-serif;">
+
+            <!-- ── DEFS: gradients, markers, filters ── -->
+            <defs>
+                <!-- Arrow markers -->
+                <marker id="arr-green" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#a78bfa"/>
+                </marker>
+                <marker id="arr-orange" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+                </marker>
+                <marker id="arr-red" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#f97316"/>
+                </marker>
+                <marker id="arr-purple" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#7c3aed"/>
+                </marker>
+                <marker id="arr-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#60a5fa"/>
+                </marker>
+
+                <!-- Glow filters -->
+                <filter id="glow-purple" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="4" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <filter id="glow-orange" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="5" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <filter id="glow-soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+
+                <!-- Box gradients -->
+                <linearGradient id="grad-biomass" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#1e1035"/><stop offset="100%" stop-color="#2d1b55"/>
+                </linearGradient>
+                <linearGradient id="grad-ad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#1a103a"/><stop offset="100%" stop-color="#3b1f7a"/>
+                </linearGradient>
+                <linearGradient id="grad-chp" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#2a1500"/><stop offset="100%" stop-color="#5a2e00"/>
+                </linearGradient>
+                <linearGradient id="grad-htc" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#1a0f38"/><stop offset="100%" stop-color="#4a1d96"/>
+                </linearGradient>
+                <linearGradient id="grad-power" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#1a1200"/><stop offset="100%" stop-color="#3d2800"/>
+                </linearGradient>
+                <linearGradient id="grad-hydrochar" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#130b2e"/><stop offset="100%" stop-color="#2e1065"/>
+                </linearGradient>
+                <linearGradient id="grad-heat" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#1a0800"/><stop offset="100%" stop-color="#3d1400"/>
+                </linearGradient>
+            </defs>
+
+            <!-- ══════════ BACKGROUND GRID ══════════ -->
+            <rect width="920" height="340" fill="#070510" rx="10"/>
+            <g stroke="#1a1035" stroke-width="0.5" opacity="0.5">
+                <line x1="0" y1="85" x2="920" y2="85"/>
+                <line x1="0" y1="170" x2="920" y2="170"/>
+                <line x1="0" y1="255" x2="920" y2="255"/>
+                <line x1="115" y1="0" x2="115" y2="340"/>
+                <line x1="345" y1="0" x2="345" y2="340"/>
+                <line x1="575" y1="0" x2="575" y2="340"/>
+                <line x1="805" y1="0" x2="805" y2="340"/>
+            </g>
+
+            <!-- ══════════ TOP ROW: MAIN PROCESS PATH ══════════ -->
+            <!-- [1] BIOMASS INPUT -->
+            <g filter="url(#glow-soft)">
+                <rect x="20" y="60" width="120" height="70" rx="8" fill="url(#grad-biomass)" stroke="#c4b5fd" stroke-width="1.2"/>
+                <text x="80" y="84" text-anchor="middle" fill="#c4b5fd" font-size="8" font-weight="700" letter-spacing="1">BIOMASS</text>
+                <text x="80" y="96" text-anchor="middle" fill="#c4b5fd" font-size="8" font-weight="700" letter-spacing="1">FEEDSTOCK</text>
+                <text x="80" y="114" text-anchor="middle" fill="#7c6fa0" font-size="7">Organic waste</text>
+                <text x="80" y="124" text-anchor="middle" fill="#7c6fa0" font-size="7">input stream</text>
+                <!-- Rotating leaf icon -->
+                <g transform="translate(80,145)">
+                    <circle r="10" fill="#2d1b55" stroke="#c4b5fd" stroke-width="0.8"/>
+                    <text text-anchor="middle" dy="4" font-size="11">🌿</text>
+                </g>
+            </g>
+
+            <!-- Arrow: Biomass → AD -->
+            <path d="M 140 95 L 232 95" stroke="#a78bfa" stroke-width="2" fill="none" marker-end="url(#arr-green)" stroke-dasharray="5,3">
+                <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="1s" repeatCount="indefinite"/>
+            </path>
+            <text x="186" y="88" text-anchor="middle" fill="#b8afd4" font-size="10">wet feed</text>
+
+            <!-- [2] AD REACTOR -->
+            <g filter="url(#glow-purple)">
+                <rect x="234" y="40" width="130" height="110" rx="8" fill="url(#grad-ad)" stroke="#a78bfa" stroke-width="1.5"/>
+                <!-- Pulsing inner circle (reactor) -->
+                <circle cx="299" cy="85" r="32" fill="none" stroke="#7c3aed" stroke-width="1" opacity="0.6">
+                    <animate attributeName="r" values="28;34;28" dur="3s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="3s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="299" cy="85" r="22" fill="#1a103a" stroke="#a78bfa" stroke-width="1.2"/>
+                <text x="299" y="82" text-anchor="middle" fill="#a78bfa" font-size="11" font-weight="700">AD</text>
+                <text x="299" y="93" text-anchor="middle" fill="#7c6fa0" font-size="7">37–55°C</text>
+                <text x="299" y="130" text-anchor="middle" fill="#c4b5fd" font-size="8" font-weight="700" letter-spacing="0.5">ANAEROBIC</text>
+                <text x="299" y="141" text-anchor="middle" fill="#c4b5fd" font-size="8" font-weight="700" letter-spacing="0.5">DIGESTION</text>
+                <!-- Bubble animations inside reactor -->
+                <circle cx="290" cy="90" r="2.5" fill="#a78bfa" opacity="0.4">
+                    <animate attributeName="cy" values="90;60;90" dur="2.2s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.4;0;0.4" dur="2.2s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="302" cy="88" r="2" fill="#c4b5fd" opacity="0.3">
+                    <animate attributeName="cy" values="88;62;88" dur="1.8s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.3;0;0.3" dur="1.8s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="310" cy="92" r="1.5" fill="#7c3aed" opacity="0.5">
+                    <animate attributeName="cy" values="92;65;92" dur="2.6s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.5;0;0.5" dur="2.6s" repeatCount="indefinite"/>
+                </circle>
+            </g>
+
+            <!-- Arrow: AD → CHP (biogas pipe) -->
+            <path d="M 364 78 L 458 78" stroke="#f59e0b" stroke-width="2" fill="none" marker-end="url(#arr-orange)" stroke-dasharray="5,3">
+                <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="0.9s" repeatCount="indefinite"/>
+            </path>
+            <text x="411" y="70" text-anchor="middle" fill="#a07820" font-size="7">biogas CH₄</text>
+
+            <!-- [3] BIOGAS CHP ENGINE -->
+            <g filter="url(#glow-orange)">
+                <rect x="460" y="45" width="130" height="100" rx="8" fill="url(#grad-chp)" stroke="#f59e0b" stroke-width="1.5"/>
+                <!-- Spinning gear -->
+                <g transform="translate(525, 85)">
+                    <animateTransform attributeName="transform" type="rotate" from="0 525 85" to="360 525 85" dur="4s" repeatCount="indefinite"/>
+                    <circle r="20" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="8,4"/>
+                </g>
+                <circle cx="525" cy="85" r="12" fill="#5a2e00" stroke="#f59e0b" stroke-width="1.2"/>
+                <text x="525" y="82" text-anchor="middle" fill="#f59e0b" font-size="7" font-weight="700">CHP</text>
+                <text x="525" y="91" text-anchor="middle" fill="#f59e0b" font-size="6">ENGINE</text>
+                <text x="525" y="132" text-anchor="middle" fill="#f59e0b" font-size="8" font-weight="700" letter-spacing="0.5">BIOGAS CHP</text>
+                <text x="525" y="143" text-anchor="middle" fill="#a07820" font-size="7">η_e·η_th</text>
+            </g>
+
+            <!-- Arrow: CHP → Power output -->
+            <path d="M 590 78 L 680 78" stroke="#f97316" stroke-width="2" fill="none" marker-end="url(#arr-red)" stroke-dasharray="5,3">
+                <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="0.7s" repeatCount="indefinite"/>
+            </path>
+            <text x="635" y="70" text-anchor="middle" fill="#7a4010" font-size="7">electricity</text>
+
+            <!-- [4] POWER OUTPUT -->
+            <g filter="url(#glow-orange)">
+                <rect x="682" y="50" width="120" height="90" rx="8" fill="url(#grad-power)" stroke="#f97316" stroke-width="1.2"/>
+                <text x="742" y="75" text-anchor="middle" fill="#f97316" font-size="8" font-weight="700" letter-spacing="0.5">ELECTRICAL</text>
+                <text x="742" y="86" text-anchor="middle" fill="#f97316" font-size="8" font-weight="700" letter-spacing="0.5">POWER OUT</text>
+                <text x="742" y="103" text-anchor="middle" fill="#a07820" font-size="7" id="schm-power-val">— kW</text>
+                <!-- Lightning bolt -->
+                <polygon points="746,112 738,125 743,125 738,138 750,122 744,122" fill="#f97316" opacity="0.9"/>
+                <!-- Pulsing ring -->
+                <circle cx="742" cy="95" r="38" fill="none" stroke="#f97316" stroke-width="0.5" opacity="0.3">
+                    <animate attributeName="r" values="35;42;35" dur="2s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite"/>
+                </circle>
+            </g>
+
+            <!-- ══════════ WASTE HEAT RETURN ARROW ══════════ -->
+            <!-- CHP waste heat → down → across to AD -->
+            <path d="M 525 145 L 525 175 L 299 175 L 299 155" stroke="#f97316" stroke-width="1.5"
+                  fill="none" marker-end="url(#arr-red)" stroke-dasharray="4,3" opacity="0.7">
+                <animate attributeName="stroke-dashoffset" from="0" to="-14" dur="1.2s" repeatCount="indefinite"/>
+            </path>
+            <text x="412" y="170" text-anchor="middle" fill="#7a4010" font-size="7">waste heat recovery</text>
+
+            <!-- ══════════ BOTTOM ROW: DIGESTATE → HTC ══════════ -->
+            <!-- Arrow: AD → Digestate down -->
+            <path d="M 299 150 L 299 215" stroke="#7c3aed" stroke-width="1.5" fill="none" marker-end="url(#arr-purple)" stroke-dasharray="4,3">
+                <animate attributeName="stroke-dashoffset" from="0" to="-14" dur="1.4s" repeatCount="indefinite"/>
+            </path>
+            <text x="312" y="188" fill="#b8afd4" font-size="10">digestate</text>
+
+            <!-- [5] HTC REACTOR -->
+            <g filter="url(#glow-purple)">
+                <rect x="234" y="218" width="130" height="100" rx="8" fill="url(#grad-htc)" stroke="#7c3aed" stroke-width="1.5"/>
+                <!-- Pressure wave animation -->
+                <circle cx="299" cy="262" r="26" fill="none" stroke="#7c3aed" stroke-width="0.8" opacity="0.5">
+                    <animate attributeName="r" values="20;30;20" dur="2.5s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.5;0;0.5" dur="2.5s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="299" cy="262" r="18" fill="#220f4a" stroke="#a78bfa" stroke-width="1.2"/>
+                <text x="299" y="258" text-anchor="middle" fill="#a78bfa" font-size="8" font-weight="700">HTC</text>
+                <text x="299" y="269" text-anchor="middle" fill="#7c6fa0" font-size="6.5">180–260°C</text>
+                <text x="299" y="305" text-anchor="middle" fill="#c4b5fd" font-size="8" font-weight="700" letter-spacing="0.5">HYDROTHERMAL</text>
+                <text x="299" y="316" text-anchor="middle" fill="#c4b5fd" font-size="8" font-weight="700" letter-spacing="0.5">CARBONISATION</text>
+                <!-- Heat particles rising in vessel -->
+                <circle cx="292" cy="270" r="2" fill="#f97316" opacity="0.6">
+                    <animate attributeName="cy" values="270;248;270" dur="1.5s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.6;0;0.6" dur="1.5s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="304" cy="272" r="1.5" fill="#f59e0b" opacity="0.5">
+                    <animate attributeName="cy" values="272;250;272" dur="1.9s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.5;0;0.5" dur="1.9s" repeatCount="indefinite"/>
+                </circle>
+            </g>
+
+            <!-- Arrow: HTC → Hydrochar -->
+            <path d="M 364 268 L 458 268" stroke="#7c3aed" stroke-width="2" fill="none" marker-end="url(#arr-purple)" stroke-dasharray="5,3">
+                <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="1.1s" repeatCount="indefinite"/>
+            </path>
+            <text x="411" y="260" text-anchor="middle" fill="#b8afd4" font-size="10">hydrochar</text>
+
+            <!-- [6] HYDROCHAR OUTPUT -->
+            <g>
+                <rect x="460" y="228" width="120" height="80" rx="8" fill="url(#grad-hydrochar)" stroke="#a78bfa" stroke-width="1.2"/>
+                <text x="520" y="252" text-anchor="middle" fill="#a78bfa" font-size="8" font-weight="700" letter-spacing="0.5">HYDROCHAR</text>
+                <text x="520" y="264" text-anchor="middle" fill="#a78bfa" font-size="8" font-weight="700" letter-spacing="0.5">OUTPUT</text>
+                <text x="520" y="280" text-anchor="middle" fill="#b8afd4" font-size="10" id="schm-hchar-val">— kg/day</text>
+                <text x="520" y="298" text-anchor="middle" font-size="16">🪨</text>
+                <!-- Shimmer -->
+                <circle cx="520" cy="268" r="35" fill="none" stroke="#7c3aed" stroke-width="0.5" opacity="0.2">
+                    <animate attributeName="opacity" values="0.2;0.5;0.2" dur="3s" repeatCount="indefinite"/>
+                </circle>
+            </g>
+
+            <!-- Arrow: HTC → Process water out -->
+            <path d="M 460 295 L 390 295 L 390 330" stroke="#60a5fa" stroke-width="1.2" fill="none" marker-end="url(#arr-blue)" stroke-dasharray="3,3" opacity="0.6">
+                <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1.3s" repeatCount="indefinite"/>
+            </path>
+            <text x="360" y="320" fill="#2a4060" font-size="7" text-anchor="middle">process water</text>
+
+            <!-- ══════════ HEAT FROM CHP → HTC ══════════ -->
+            <path d="M 525 145 L 525 200 L 460 200 L 460 258 L 460 258" stroke="#f59e0b" stroke-width="1.2"
+                  fill="none" marker-end="url(#arr-orange)" stroke-dasharray="4,3" opacity="0.55">
+                <animate attributeName="stroke-dashoffset" from="0" to="-14" dur="1.5s" repeatCount="indefinite"/>
+            </path>
+            <text x="492" y="196" text-anchor="middle" fill="#7a4010" font-size="7">heat to HTC</text>
+
+            <!-- ══════════ BIOGAS LABEL BUBBLE ══════════ -->
+            <rect x="155" y="58" width="72" height="22" rx="4" fill="#1a103a" stroke="#a78bfa" stroke-width="0.8" opacity="0.8"/>
+            <text x="191" y="73" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" id="schm-biogas-val">— m³/day</text>
+
+            <!-- ══════════ STACK / LEGEND ══════════ -->
+            <g transform="translate(690, 175)">
+                <text fill="#b8afd4" font-size="11" font-weight="700" letter-spacing="0.5">LEGEND</text>
+                <line x1="0" y1="10" x2="24" y2="10" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3"/>
+                <text x="30" y="14" fill="#b8afd4" font-size="10">biomass / digestate</text>
+                <line x1="0" y1="26" x2="24" y2="26" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5,3"/>
+                <text x="30" y="30" fill="#b8afd4" font-size="10">biogas / heat flow</text>
+                <line x1="0" y1="42" x2="24" y2="42" stroke="#f97316" stroke-width="2" stroke-dasharray="5,3"/>
+                <text x="30" y="46" fill="#b8afd4" font-size="10">electricity / power</text>
+                <line x1="0" y1="58" x2="24" y2="58" stroke="#60a5fa" stroke-width="2" stroke-dasharray="3,3"/>
+                <text x="30" y="62" fill="#b8afd4" font-size="10">process water</text>
+                <line x1="0" y1="74" x2="24" y2="74" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5,3"/>
+                <text x="30" y="78" fill="#b8afd4" font-size="10">hydrochar stream</text>
+            </g>
+
+            <!-- ══════════ SECTION LABELS ══════════ -->
+            <text x="80" y="22" text-anchor="middle" fill="#2a1f45" font-size="8" font-weight="700" letter-spacing="2">INPUT</text>
+            <text x="299" y="22" text-anchor="middle" fill="#2a1f45" font-size="8" font-weight="700" letter-spacing="2">AD STAGE</text>
+            <text x="525" y="22" text-anchor="middle" fill="#2a1f45" font-size="8" font-weight="700" letter-spacing="2">CHP STAGE</text>
+            <text x="742" y="22" text-anchor="middle" fill="#2a1f45" font-size="8" font-weight="700" letter-spacing="2">OUTPUT</text>
+            <text x="299" y="210" text-anchor="middle" fill="#2a1f45" font-size="8" font-weight="700" letter-spacing="2">HTC STAGE</text>
+
+            <!-- Moving flow particles: Biomass → AD -->
+            <circle r="4" fill="#c4b5fd" opacity="0.8">
+                <animateMotion dur="2s" repeatCount="indefinite" path="M 140 95 L 234 95"/>
+                <animate attributeName="opacity" values="0;0.8;0" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <!-- Moving flow particles: AD → CHP -->
+            <circle r="3.5" fill="#f59e0b" opacity="0.8">
+                <animateMotion dur="1.8s" repeatCount="indefinite" path="M 364 78 L 460 78"/>
+                <animate attributeName="opacity" values="0;0.8;0" dur="1.8s" repeatCount="indefinite"/>
+            </circle>
+            <!-- Second particle offset -->
+            <circle r="3.5" fill="#f59e0b" opacity="0.8">
+                <animateMotion dur="1.8s" begin="0.9s" repeatCount="indefinite" path="M 364 78 L 460 78"/>
+                <animate attributeName="opacity" values="0;0.8;0" dur="1.8s" begin="0.9s" repeatCount="indefinite"/>
+            </circle>
+            <!-- CHP → Power -->
+            <circle r="4" fill="#f97316" opacity="0.9">
+                <animateMotion dur="1.5s" repeatCount="indefinite" path="M 590 78 L 682 78"/>
+                <animate attributeName="opacity" values="0;0.9;0" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+            <!-- AD → HTC digestate -->
+            <circle r="3" fill="#7c3aed" opacity="0.8">
+                <animateMotion dur="2.2s" repeatCount="indefinite" path="M 299 150 L 299 218"/>
+                <animate attributeName="opacity" values="0;0.8;0" dur="2.2s" repeatCount="indefinite"/>
+            </circle>
+            <!-- HTC → Hydrochar -->
+            <circle r="3.5" fill="#a78bfa" opacity="0.8">
+                <animateMotion dur="2s" repeatCount="indefinite" path="M 364 268 L 460 268"/>
+                <animate attributeName="opacity" values="0;0.8;0" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <!-- Waste heat loop particle -->
+            <circle r="3" fill="#f97316" opacity="0.7">
+                <animateMotion dur="3s" repeatCount="indefinite" path="M 525 145 L 525 175 L 299 175 L 299 155"/>
+                <animate attributeName="opacity" values="0;0.7;0" dur="3s" repeatCount="indefinite"/>
+            </circle>
+
+        </svg>
+        </div>
+    </div>
+
+    <!-- Static text flow (kept as simple backup label row) -->
+    <div id="flow-diagram" class="hidden"></div>
+
+</main>
+</div>
+
+<script>
+Chart.register(ChartDataLabels);
+
+// ── BIOMASS DATABASE ──────────────────────────────────────────────────────
+const BIOMASS_DB = {
+  corn_stover:    { name:'Corn Stover (Agricultural)',  TS:0.88, VS:0.85, biogasYield:0.338, CH4:0.55, HTC_yield:0.55, HTC_HHV:21500 },
+  rice_husk:      { name:'Rice Husk (Agricultural)',    TS:0.90, VS:0.80, biogasYield:0.250, CH4:0.52, HTC_yield:0.58, HTC_HHV:18200 },
+  wheat_straw:    { name:'Wheat Straw (Agricultural)',  TS:0.87, VS:0.83, biogasYield:0.290, CH4:0.53, HTC_yield:0.56, HTC_HHV:19500 },
+  sugarcane:      { name:'Sugarcane Bagasse',           TS:0.50, VS:0.90, biogasYield:0.310, CH4:0.54, HTC_yield:0.52, HTC_HHV:20100 },
+  food_waste:     { name:'Food / Kitchen Waste',        TS:0.25, VS:0.90, biogasYield:0.550, CH4:0.62, HTC_yield:0.45, HTC_HHV:19800 },
+  cow_manure:     { name:'Cow Manure',                  TS:0.18, VS:0.80, biogasYield:0.280, CH4:0.60, HTC_yield:0.48, HTC_HHV:14500 },
+  pig_manure:     { name:'Pig Manure',                  TS:0.20, VS:0.82, biogasYield:0.320, CH4:0.62, HTC_yield:0.46, HTC_HHV:15200 },
+  poultry_litter: { name:'Poultry Litter',              TS:0.65, VS:0.75, biogasYield:0.370, CH4:0.60, HTC_yield:0.50, HTC_HHV:16000 },
+  sewage_sludge:  { name:'Sewage Sludge',               TS:0.30, VS:0.70, biogasYield:0.300, CH4:0.58, HTC_yield:0.50, HTC_HHV:15000 },
+  wood_chips:     { name:'Wood Chips (Lignocellulosic)',TS:0.85, VS:0.92, biogasYield:0.200, CH4:0.55, HTC_yield:0.65, HTC_HHV:24000 },
+  sawdust:        { name:'Sawdust / Wood Waste',        TS:0.88, VS:0.93, biogasYield:0.210, CH4:0.55, HTC_yield:0.63, HTC_HHV:23500 },
+  msw:            { name:'Municipal Solid Waste (MSW)', TS:0.60, VS:0.75, biogasYield:0.400, CH4:0.58, HTC_yield:0.50, HTC_HHV:17500 },
+  algae:          { name:'Microalgae (Chlorella)',      TS:0.10, VS:0.85, biogasYield:0.450, CH4:0.65, HTC_yield:0.40, HTC_HHV:22000 },
+  grass:          { name:'Grass / Energy Crops',        TS:0.30, VS:0.88, biogasYield:0.380, CH4:0.55, HTC_yield:0.50, HTC_HHV:18800 },
+  palm_waste:     { name:'Palm Empty Fruit Bunch',      TS:0.78, VS:0.85, biogasYield:0.270, CH4:0.53, HTC_yield:0.60, HTC_HHV:20800 },
+  cassava:        { name:'Cassava Peel / Waste',        TS:0.88, VS:0.86, biogasYield:0.420, CH4:0.58, HTC_yield:0.48, HTC_HHV:19200 },
+};
+
+// Populate dropdown
+const sel = document.getElementById('biomass_type');
+Object.entries(BIOMASS_DB).forEach(([k, v]) => {
+    const opt = document.createElement('option');
+    opt.value = k; opt.textContent = v.name;
+    sel.appendChild(opt);
+});
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────────
+const GRID = '#1a1030';
+const TICK = '#b8afd4';
+const MONO = { family: 'Inter', size: 10 };
+
+// ── STEAM TABLE LOOKUP ────────────────────────────────────────────────────
+// Saturated water: P in bar → { tsat°C, hf, hg, sf, sg } kJ/kg, kJ/kg·K
+const SAT_TABLE = [
+  { p:0.01, t:45.8,  hf:191.8, hg:2584.7, sf:0.649, sg:8.150 },
+  { p:0.02, t:60.1,  hf:251.4, hg:2609.7, sf:0.832, sg:7.909 },
+  { p:0.04, t:75.9,  hf:317.6, hg:2636.8, sf:1.026, sg:7.670 },
+  { p:0.06, t:85.9,  hf:359.9, hg:2653.6, sf:1.145, sg:7.533 },
+  { p:0.08, t:93.5,  hf:391.7, hg:2665.3, sf:1.233, sg:7.435 },
+  { p:0.10, t:99.6,  hf:417.4, hg:2675.5, sf:1.303, sg:7.359 },
+  { p:0.20, t:120.2, hf:504.7, hg:2706.7, sf:1.530, sg:7.127 },
+  { p:0.50, t:151.9, hf:640.2, hg:2748.7, sf:1.861, sg:6.821 },
+  { p:1.00, t:179.9, hf:762.8, hg:2778.1, sf:2.139, sg:6.586 },
+];
+
+// Superheated steam: rows = pressure (bar), cols = temp (°C)
+// Data: [p_bar, T_C, h_kJ/kg, s_kJ/kgK]  — includes low pressures so interpolation always works
+const SUP_TABLE = [
+  // 0.1 bar
+  [0.1,100,2675.6,7.360],[0.1,150,2776.4,7.614],[0.1,200,2875.5,7.834],[0.1,300,3075.6,8.216],[0.1,400,3280.0,8.544],[0.1,500,3488.3,8.834],[0.1,600,3705.2,9.097],
+  // 0.5 bar
+  [0.5,200,2855.5,7.432],[0.5,300,3064.3,7.794],[0.5,400,3272.4,8.092],[0.5,500,3483.9,8.392],[0.5,600,3700.9,8.641],
+  // 1 bar
+  [1,200,2827.9,6.693],[1,250,2942.6,6.925],[1,300,3051.6,7.125],[1,400,3264.5,7.466],[1,500,3479.5,7.762],[1,600,3697.9,8.029],
+  // 5 bar
+  [5,200,2855.4,7.059],[5,250,2960.7,7.272],[5,300,3064.2,7.461],[5,400,3272.3,7.793],[5,500,3483.9,8.088],[5,600,3700.9,8.353],
+  // 10 bar
+  [10,200,2827.9,6.694],[10,300,3051.2,7.124],[10,400,3263.9,7.465],[10,500,3479.0,7.763],[10,600,3697.9,8.029],
+  [20,300,3024.2,6.769],[20,400,3248.7,7.127],[20,500,3467.6,7.432],[20,600,3690.1,7.702],
+  [40,300,2962.0,6.364],[40,400,3214.5,6.771],[40,500,3445.3,7.090],[40,600,3674.4,7.366],
+  [60,300,2885.5,6.069],[60,400,3178.3,6.547],[60,500,3422.2,6.882],[60,600,3658.4,7.168],
+  [80,300,2786.5,5.791],[80,400,3139.4,6.368],[80,500,3399.5,6.724],[80,600,3642.0,6.999],
+  [100,300,2547.0,5.442],[100,400,3096.5,6.213],[100,500,3373.7,6.597],[100,600,3625.3,6.903],
+  [120,300,2074.4,4.925],[120,400,3051.1,6.071],[120,500,3347.0,6.494],[120,600,3608.3,6.826],
+  [160,400,2945.3,5.819],[160,500,3289.1,6.344],[160,600,3573.5,6.690],
+  [200,400,2818.1,5.554],[200,500,3238.2,6.141],[200,600,3536.9,6.570],
+];
+
+function satLookup(p_bar) {
+    // clamp
+    const tb = SAT_TABLE;
+    if (p_bar <= tb[0].p) return {...tb[0]};
+    if (p_bar >= tb[tb.length-1].p) return {...tb[tb.length-1]};
+    for (let i = 0; i < tb.length-1; i++) {
+        if (p_bar >= tb[i].p && p_bar <= tb[i+1].p) {
+            const f = (p_bar - tb[i].p) / (tb[i+1].p - tb[i].p);
+            const lerp = (a,b) => a + f*(b-a);
+            return {
+                t:  lerp(tb[i].t,  tb[i+1].t),
+                hf: lerp(tb[i].hf, tb[i+1].hf),
+                hg: lerp(tb[i].hg, tb[i+1].hg),
+                sf: lerp(tb[i].sf, tb[i+1].sf),
+                sg: lerp(tb[i].sg, tb[i+1].sg),
+            };
+        }
+    }
+}
+
+function supLookup(p_bar, T_C) {
+    const ps = [...new Set(SUP_TABLE.map(r=>r[0]))].sort((a,b)=>a-b);
+    // clamp pressure to table range
+    const clampedP = Math.max(ps[0], Math.min(ps[ps.length-1], p_bar));
+
+    // find surrounding pressures
+    let p_lo = ps[0], p_hi = ps[1];
+    for (let i=0; i<ps.length-1; i++) {
+        if (clampedP >= ps[i] && clampedP <= ps[i+1]) { p_lo=ps[i]; p_hi=ps[i+1]; break; }
+        if (i === ps.length-2) { p_lo = ps[ps.length-2]; p_hi = ps[ps.length-1]; }
+    }
+
+    const interpAt = (p_val) => {
+        const rows = SUP_TABLE.filter(r=>r[0]===p_val).sort((a,b)=>a[1]-b[1]);
+        if (!rows.length) return null;
+        // clamp T to table range for this pressure
+        if (T_C <= rows[0][1]) return { h: rows[0][2], s: rows[0][3] };
+        if (T_C >= rows[rows.length-1][1]) return { h: rows[rows.length-1][2], s: rows[rows.length-1][3] };
+        for (let i=0; i<rows.length-1; i++) {
+            if (T_C >= rows[i][1] && T_C <= rows[i+1][1]) {
+                const f = (T_C - rows[i][1]) / (rows[i+1][1] - rows[i][1]);
+                return { h: rows[i][2] + f*(rows[i+1][2]-rows[i][2]), s: rows[i][3] + f*(rows[i+1][3]-rows[i][3]) };
+            }
+        }
+        return { h: rows[rows.length-1][2], s: rows[rows.length-1][3] };
+    };
+
+    if (p_lo === p_hi) { return interpAt(p_lo); }
+    const lo = interpAt(p_lo), hi = interpAt(p_hi);
+    if (!lo) return hi;
+    if (!hi) return lo;
+    const fp = (clampedP - p_lo) / (p_hi - p_lo);
+    return { h: lo.h + fp*(hi.h - lo.h), s: lo.s + fp*(hi.s - lo.s) };
+}
+
+let energyChart, massChart, heatChart, hsChart, tsChart;
+
+// ── ANALYSIS ENGINE ───────────────────────────────────────────────────────
+function runAnalysis() {
+    
+
+    // Read inputs
+    const key         = document.getElementById('biomass_type').value;
+    const bm          = BIOMASS_DB[key];
+    const feedRate    = parseFloat(document.getElementById('feed_rate').value);   // t/day
+
+    // Biogas ICE inputs
+    const P1          = parseFloat(document.getElementById('p1').value);           // kPa ambient
+    const T1          = parseFloat(document.getElementById('t1').value);           // K ambient
+    const m_air       = parseFloat(document.getElementById('mass_flow_air').value);// kg/s
+    const r_p         = parseFloat(document.getElementById('r_p').value);          // pressure ratio
+    const T3          = parseFloat(document.getElementById('tit').value);          // K turbine inlet (TIT)
+    const eta_c       = parseFloat(document.getElementById('eta_c').value);        // compressor efficiency
+    const eta_t       = parseFloat(document.getElementById('eta_t').value);        // turbine efficiency
+
+    // Rankine inputs
+    const p_boiler    = parseFloat(document.getElementById('p_boiler').value);     // bar
+    const t_steam_C   = parseFloat(document.getElementById('t_steam').value);      // °C
+    const p_cond      = parseFloat(document.getElementById('p_cond').value);       // bar
+    const eta_st      = parseFloat(document.getElementById('eta_st').value);       // steam turbine eff
+    const eta_p       = parseFloat(document.getElementById('eta_p').value);        // pump efficiency
+
+    // Fixed thermodynamic constants
+    const cp_air  = 1.005;  // kJ/kg·K
+    const cp_gas  = 1.148;  // kJ/kg·K
+    const R_air   = 0.287;  // kJ/kg·K
+    const gamma_c = 1.4;
+    const gamma_t = 1.33;
+
+    const feedKg  = feedRate * 1000;   // kg/day
+    const T1_C    = T1 - 273.15;       // °C
+
+    // ── AD SECTION ───────────────────────────────────────────────────────
+    const dryMass      = feedKg * bm.TS;
+    const vsMass       = dryMass * bm.VS;
+    const vsDestroyed  = vsMass * 0.60;              // 60% VS destruction
+    const biogasVol    = vsDestroyed * bm.biogasYield; // m³/day
+    const methaneVol   = biogasVol * bm.CH4;           // m³ CH₄/day
+    const LHV_biogas   = bm.CH4 * 35.8;                // MJ/m³ biogas
+    const biogasEnergy_kW = biogasVol * LHV_biogas * 1000 / 86400; // kW (continuous)
+
+    // ── HTC SECTION ──────────────────────────────────────────────────────
+    const htcTemp      = parseFloat(document.getElementById('htc_temp_input').value);  // °C from slider
+    const digestateDry = dryMass - vsDestroyed;
+    const digestateWet = digestateDry / 0.05;
+    const htcYieldCorr = Math.min(bm.HTC_yield + (htcTemp - 180) * 0.0015, 0.80);
+    const hydrocharKg  = digestateDry * htcYieldCorr;
+
+    // ── BRAYTON CYCLE STATES ─────────────────────────────────────────────
+    // State 1: Compressor inlet (ambient)
+    const P2   = P1 * r_p;                                         // kPa compressor outlet
+    const T2s  = T1 * Math.pow(r_p, (gamma_c - 1) / gamma_c);     // K isentropic
+    const T2   = T1 + (T2s - T1) / eta_c;                         // K actual
+
+    // State 3: Turbine inlet = TIT (user-set)
+    const P3   = P2;
+    const T4s  = T3 / Math.pow(r_p, (gamma_t - 1) / gamma_t);     // K isentropic expansion
+    const T4   = T3 - eta_t * (T3 - T4s);                         // K actual turbine exit
+    const P4   = P1;
+
+    // Specific work & heat [kJ/kg]
+    const W_comp  = cp_air * (T2 - T1);
+    const W_turb  = cp_gas * (T3 - T4);
+    const W_net   = W_turb - W_comp;
+    const Q_in    = cp_gas * (T3 - T2);
+    const eta_bray = W_net / Q_in;
+
+    // Net power from gas cycle [kW]
+    const gasNetPower = m_air * W_net;                             // kW
+    const gasHeatOut  = m_air * cp_gas * (T4 - T1) * 0.45;        // 45% thermal recovery kW
+
+    // Biogas ICE T-s entropy (ref s1=1.0 kJ/kg·K)
+    const s1 = 1.0;
+    const s2 = s1 + cp_air * Math.log(T2 / T1) - R_air * Math.log(r_p);
+    const s3 = s2 + cp_gas * Math.log(T3 / T2);
+    const s4 = s3 + cp_gas * Math.log(T4 / T3) + R_air * Math.log(r_p);
+
+    // ── RANKINE CYCLE STATES ─────────────────────────────────────────────
+    // State A: Condenser exit / pump inlet — sat liquid at P_cond
+    const sat = satLookup(p_cond);
+    const hA = sat.hf, sA = sat.sf;
+    const hfg_cond = sat.hg - sat.hf;
+    const sfg_cond = sat.sg - sat.sf;
+
+    // State B: Pump outlet — compressed liquid at P_boiler
+    const v_f    = 0.001;  // m³/kg (sat liquid specific volume ≈ const)
+    const w_pump = v_f * (p_boiler - p_cond) * 100;  // kJ/kg (bar→kPa *100)
+    const hB     = hA + w_pump / eta_p;
+    const sB     = sA;  // nearly isentropic pump
+
+    // State C: Turbine inlet — superheated steam at P_boiler / T_steam
+    const stm  = supLookup(p_boiler, t_steam_C);
+    const hC   = stm.h, sC = stm.s;
+
+    // State D: Turbine exit — wet or superheated steam at P_cond
+    const x_s   = Math.min(1.0, (sC - sat.sf) / (sat.sg - sat.sf));
+    const hDs   = sat.hf + x_s * hfg_cond;            // isentropic
+    const hD    = hC - eta_st * (hC - hDs);           // actual
+    const x_act = Math.min(1.0, (hD - sat.hf) / hfg_cond);
+    const sD    = sat.sf + x_act * sfg_cond;
+
+    // Steam Rankine specific work [kJ/kg steam]
+    const w_st_net = (hC - hD) - w_pump / eta_p;
+    const q_boiler = hC - hB;
+    const eta_rank = w_st_net / q_boiler;
+
+    // ── CHP POWER SUMMARY ────────────────────────────────────────────────
+    const elecPower  = gasNetPower;                                // kW gas cycle output
+    const thermPower = gasHeatOut;                                 // kW recoverable heat
+    const losses     = m_air * Q_in - gasNetPower - thermPower;   // kW losses
+
+    // ── HEAT INTEGRATION ─────────────────────────────────────────────────
+    const T_AD    = 37;  // mesophilic AD °C (simplified)
+    const Q_AD_kW = (feedKg / 86400) * 4180 * (T_AD - T1_C) / 1000;
+    const Q_HTC_kW= (digestateWet / 86400) * 4000 * (htcTemp - T_AD) / 1000;
+    const heatBalance = thermPower - Q_AD_kW - Q_HTC_kW;
+
+    // ── MASS BALANCE ──────────────────────────────────────────────────────
+    const biogasMass = biogasVol * 1.2;   // kg/day
+
+    // ── ORGANIC LOADING RATE ──────────────────────────────────────────────
+    // OLR = kg VS added per m³ of reactor volume per day
+    // Assume HRT drives reactor volume: V_reactor = feedKg * HRT_days / 1000 m³
+    // HRT fixed at 25 days for simplicity (no HRT input currently)
+    const HRT_days = 25;
+    const V_reactor = (feedKg / 1000) * HRT_days;        // m³ reactor volume
+    const OLR       = vsMass / V_reactor;                 // kg VS / m³·day
+
+    // ── UPDATE UI ─────────────────────────────────────────────────────────
+    updateBanner(bm);
+    updateKPIs({
+        biogasVol, LHV_biogas, methaneVol,
+        elecPower, thermPower, hydrocharKg,
+        hhv: bm.HTC_HHV, heatBalance,
+        OLR, V_reactor,
+        W_comp, W_turb, W_net,
+        eta_bray, eta_rank,
+        T2, T3, T4,
+        P1, P2: P2/1000, // show in MPa for clarity
+        hA, hB, hC, hD, x_act,
+    });
+    updateFlowDiagram();
+    drawCharts(
+        { elec: elecPower, therm: thermPower, losses },
+        { feedKg, biogasMass, digestateDry, hydrocharKg },
+        { thermPower, Q_AD_kW, Q_HTC_kW },
+        { hA, sA, hB, sB, hC, sC, hD, sD },
+        { T1, T2, T3, T4, s1, s2, s3, s4 }
+    );
+
+    // Schematic labels
+    const sPwr = document.getElementById('schm-power-val');
+    const sHc  = document.getElementById('schm-hchar-val');
+    const sBio = document.getElementById('schm-biogas-val');
+    if (sPwr) sPwr.textContent = elecPower.toFixed(1) + ' kW';
+    if (sHc)  sHc.textContent  = hydrocharKg.toFixed(0) + ' kg/day';
+    if (sBio) sBio.textContent = biogasVol.toFixed(0) + ' m³/day';
+
+    
+}
+
+// ── BANNER ────────────────────────────────────────────────────────────────
+function updateBanner(bm) {
+    document.getElementById('feedstock-banner').classList.remove('hidden');
+    document.getElementById('banner-name').textContent = bm.name;
+    document.getElementById('banner-ts').textContent   = (bm.TS * 100).toFixed(0) + '% TS';
+    document.getElementById('banner-vs').textContent   = (bm.VS * 100).toFixed(0) + '% VS of TS';
+    document.getElementById('banner-by').textContent   = bm.biogasYield.toFixed(3) + ' m³/kg VS';
+    document.getElementById('banner-ch4').textContent  = (bm.CH4 * 100).toFixed(0) + '% CH₄';
+    document.getElementById('banner-htc').textContent  = (bm.HTC_yield * 100).toFixed(0) + '% of dry';
+}
+
+// ── KPI PANEL ─────────────────────────────────────────────────────────────
+function updateKPIs(d) {
+    const panel = document.getElementById('kpi-panel');
+    panel.classList.remove('hidden');
+    panel.className = panel.className.replace('grid-cols-2 md:grid-cols-4','') + ' grid grid-cols-2 md:grid-cols-4 gap-3';
+
+    const kpis = [
+        // ── AD / Biogas
+        { l:'Biogas Production',              v: d.biogasVol.toFixed(1),                             u:'m³ / day',  c:'#c4b5fd', sub:'AD output' },
+        { l:'Biogas LHV',                     v: d.LHV_biogas.toFixed(2),                            u:'MJ / m³',   c:'#c4b5fd', sub:'lower heating value' },
+        { l:'CH₄ Volume',                     v: d.methaneVol.toFixed(1),                            u:'m³ / day',  c:'#a78bfa', sub:'methane fraction' },
+        { l:'Organic Loading Rate (OLR)',      v: d.OLR.toFixed(2),                                   u:'kg VS/m³·d',c:'#34d399', sub:'AD reactor biology' },
+        // ── Biogas ICE
+        { l:'Compressor Work — W꜀',           v: d.W_comp.toFixed(2),                                u:'kJ / kg',   c:'#f59e0b', sub:'isentropic + losses' },
+        { l:'Turbine Work — Wₜ',               v: d.W_turb.toFixed(2),                                u:'kJ / kg',   c:'#f59e0b', sub:'actual expansion' },
+        { l:'Net Specific Work — Wₙₑₜ',       v: d.W_net.toFixed(2),                                 u:'kJ / kg',   c:'#f97316', sub:'Wₜ − W꜀' },
+        { l:'ICE Net Power Output',            v: d.elecPower.toFixed(1),                             u:'kW',        c:'#f97316', sub:'ṁ_air × W_net' },
+        { l:'ICE Thermal Efficiency η_th',     v: (d.eta_bray * 100).toFixed(1),                      u:'%',         c:'#fbbf24', sub:'W_net / Q_in' },
+        { l:'Exhaust Temp — T₄',              v: d.T4.toFixed(1),                                    u:'K',         c:'#f59e0b', sub:'ICE exhaust' },
+        { l:'Compressor Exit Temp — T₂',      v: d.T2.toFixed(1),                                    u:'K',         c:'#f59e0b', sub:'actual T₂' },
+        // ── Rankine
+        { l:'Steam Enthalpy In — h꜀ ',        v: d.hC.toFixed(1),                                    u:'kJ / kg',   c:'#60a5fa', sub:'turbine inlet' },
+        { l:'Steam Enthalpy Out — h_D',       v: d.hD.toFixed(1),                                    u:'kJ / kg',   c:'#60a5fa', sub:'turbine exit' },
+        { l:'Steam Quality — x_D',            v: (d.x_act * 100).toFixed(1),                         u:'%',         c:'#60a5fa', sub:'wet steam dryness' },
+        { l:'Rankine η_th',                   v: (d.eta_rank * 100).toFixed(1),                       u:'%',         c:'#93c5fd', sub:'w_net / q_boiler' },
+        // ── HTC / Heat
+        { l:'Hydrochar Yield',                v: d.hydrocharKg.toFixed(1),                           u:'kg / day',  c:'#a78bfa', sub:'HTC output' },
+        { l:'Heat Balance',                   v: (d.heatBalance>=0?'+':'')+d.heatBalance.toFixed(1), u:'kW',        c: d.heatBalance>=0?'#86efac':'#ef4444', sub: d.heatBalance>=0?'surplus':'deficit' },
+    ];
+
+    panel.innerHTML = kpis.map(k => `
+        <div class="glass kpi-card rounded-xl p-3">
+            <p class="text-xs uppercase tracking-wide mb-0.5" style="color:#b8afd4;">${k.l}</p>
+            <p class="text-base font-bold leading-tight" style="color:${k.c}; font-family:'Space Grotesk',sans-serif;">
+                ${k.v}<span class="text-xs ml-1 font-normal" style="color:#b8afd4;">${k.u}</span>
+            </p>
+            <p class="text-xs mt-0.5" style="color:#3a2f55;">${k.sub}</p>
+        </div>`).join('');
+}
+
+// ── FLOW DIAGRAM ─────────────────────────────────────────────────────────
+function updateFlowDiagram() {
+    const fd = document.getElementById('flow-diagram');
+    fd.classList.remove('hidden');
+    const row1 = [
+        { label:'BIOMASS\nFEEDSTOCK', color:'#c4b5fd' }, null,
+        { label:'ANAEROBIC\nDIGESTION', color:'#a78bfa' }, null,
+        { label:'BIOGAS\nCHP ENGINE', color:'#f59e0b' }, null,
+        { label:'ELECTRICITY\n+ HEAT', color:'#f97316' },
+    ];
+    const row2 = [
+        { label:'DIGESTATE', color:'#7c6fa0' }, null,
+        { label:'HTC\nREACTOR', color:'#7c3aed' }, null,
+        { label:'HYDROCHAR', color:'#a78bfa' },
+    ];
+    fd.innerHTML = `
+        <div class="w-full space-y-2">
+            <div class="flex items-center gap-1 justify-center flex-wrap">
+                ${row1.map(b => b===null ? `<div class="flow-arrow">→</div>`
+                    : `<div class="flow-box" style="color:${b.color};border-color:${b.color}33;background:${b.color}0a;white-space:pre-line;min-w-[90px];">${b.label}</div>`).join('')}
+            </div>
+            <div class="flex items-center gap-1 justify-center flex-wrap ml-20">
+                <div style="color:#b8afd4;font-size:9px;align-self:center;">↓ digestate</div>
+                ${row2.map(b => b===null ? `<div class="flow-arrow">→</div>`
+                    : `<div class="flow-box" style="color:${b.color};border-color:${b.color}33;background:${b.color}0a;white-space:pre-line;min-w-[80px];">${b.label}</div>`).join('')}
+                <div style="color:#b8afd4;font-size:9px;align-self:center;">+ process water</div>
+            </div>
+        </div>`;
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────────
+function makeDatalabels(fmt, anchor='end', align='top') {
+    return {
+        display: true, color: '#e2d9f3',
+        font: { family:'Inter', size:9, weight:'bold' },
+        anchor, align, offset: 4,
+        formatter: fmt
+    };
+}
+
+function drawCharts(energy, mass, heat, rankine, brayton) {
+    [energyChart, massChart, heatChart, hsChart, tsChart]
+        .forEach(c => { if(c) c.destroy(); });
+
+    const baseOpts = (xTitle, yTitle, indexAxis='x') => ({
+        responsive: true,
+        indexAxis,
+        plugins: { legend: { display:false } },
+        scales: {
+            x: { title:{ display:true, text:xTitle, color:TICK, font:MONO }, grid:{ color:GRID }, ticks:{ color:TICK, font:MONO } },
+            y: { title:{ display:true, text:yTitle, color:TICK, font:MONO }, grid:{ color:GRID }, ticks:{ color:TICK, font:MONO } }
+        }
+    });
+
+    // 1. ENERGY BAR
+    energyChart = new Chart(document.getElementById('energyChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Electrical Output', 'Thermal (Waste Heat)', 'Losses'],
+            datasets: [{ label:'Power (kW)',
+                data: [energy.elec, energy.therm, energy.losses],
+                backgroundColor: ['rgba(245,158,11,0.65)','rgba(249,115,22,0.65)','rgba(239,68,68,0.4)'],
+                borderColor: ['#f59e0b','#f97316','#ef4444'],
+                borderWidth:1, borderRadius:4 }]
+        },
+        options: { ...baseOpts('','Power (kW)'),
+            plugins: { legend:{display:false}, datalabels: makeDatalabels(v => v.toFixed(1)+' kW') } }
+    });
+
+    // 2. MASS BALANCE
+    massChart = new Chart(document.getElementById('massChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Feedstock','Biogas','Digestate (Dry)','Hydrochar'],
+            datasets: [{ label:'Mass (kg/day)',
+                data: [mass.feedKg, mass.biogasMass, mass.digestateDry, mass.hydrocharKg],
+                backgroundColor: ['rgba(196,181,253,0.5)','rgba(167,139,250,0.5)','rgba(124,58,237,0.45)','rgba(124,58,237,0.75)'],
+                borderColor: ['#c4b5fd','#a78bfa','#7c3aed','#7c3aed'],
+                borderWidth:1, borderRadius:4 }]
+        },
+        options: { ...baseOpts('kg/day','','y'),
+            plugins: { legend:{display:false}, datalabels: makeDatalabels(v=>v.toFixed(0)+' kg','end','right') } }
+    });
+
+    // 3. HEAT INTEGRATION
+    const netHeat = heat.thermPower - heat.Q_AD_kW - heat.Q_HTC_kW;
+    heatChart = new Chart(document.getElementById('heatChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Thermal Available','AD Demand','HTC Demand','Net Balance'],
+            datasets: [{ label:'kW',
+                data: [heat.thermPower, heat.Q_AD_kW, heat.Q_HTC_kW, netHeat],
+                backgroundColor: [
+                    'rgba(196,181,253,0.55)','rgba(167,139,250,0.45)','rgba(124,58,237,0.45)',
+                    netHeat>=0 ? 'rgba(134,239,172,0.65)' : 'rgba(239,68,68,0.65)'
+                ],
+                borderColor: ['#c4b5fd','#a78bfa','#7c3aed', netHeat>=0?'#86efac':'#ef4444'],
+                borderWidth:1, borderRadius:4 }]
+        },
+        options: { ...baseOpts('','Power (kW)'),
+            plugins: { legend:{display:false}, datalabels: makeDatalabels(v=>v.toFixed(1)+' kW') } }
+    });
+
+    // Heat summary panel
+    const badge = document.getElementById('heat-badge');
+    badge.className = 'rounded-lg p-3 ' + (netHeat>=0 ? 'badge-surplus' : 'badge-deficit');
+    document.getElementById('heat-label').textContent = netHeat>=0 ? 'HEAT SURPLUS' : 'HEAT DEFICIT';
+    document.getElementById('heat-value').textContent = (netHeat>=0?'+':'')+netHeat.toFixed(1)+' kW';
+    document.getElementById('heat-sub').textContent   = netHeat>=0 ? 'Waste heat self-sufficient' : 'External heat required';
+    document.getElementById('h-avail').textContent = heat.thermPower.toFixed(1)+' kW';
+    document.getElementById('h-ad').textContent    = heat.Q_AD_kW.toFixed(1)+' kW';
+    document.getElementById('h-htc').textContent   = heat.Q_HTC_kW.toFixed(1)+' kW';
+    document.getElementById('heat-summary').classList.remove('hidden');
+
+    // ── 4. h-s MOLLIER DIAGRAM (Rankine — Steam Cycle) ────────────────
+    // Closed loop: A(pump in) → B(pump out) → C(turbine in) → D(turbine out) → A
+    const r = rankine;
+    const hs_s   = [r.sA, r.sB, r.sC, r.sD, r.sA];
+    const hs_h   = [r.hA, r.hB, r.hC, r.hD, r.hA];
+    const hs_lbl = ['A — Pump In', 'B — Pump Out', 'C — Turbine In', 'D — Turbine Out', ''];
+
+    hsChart = new Chart(document.getElementById('hsChart'), {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Rankine Cycle',
+                data: hs_s.map((s,i) => ({ x:s, y:hs_h[i] })),
+                pointLabels: hs_lbl,
+                borderColor: '#a78bfa',
+                backgroundColor: 'rgba(124,58,237,0.08)',
+                pointBackgroundColor: ['#f59e0b','#f59e0b','#f97316','#f97316','transparent'],
+                pointRadius: [7,7,7,7,0],
+                showLine: true, tension: 0.1, fill: true
+            }]
+        },
+        options: {
+            responsive: true, animation:{ duration:700 },
+            scales: {
+                x: { title:{ display:true, text:'Entropy s (kJ/kg·K)', color:TICK, font:MONO }, grid:{ color:GRID }, ticks:{ color:TICK, font:MONO } },
+                y: { title:{ display:true, text:'Enthalpy h (kJ/kg)',   color:TICK, font:MONO }, grid:{ color:GRID }, ticks:{ color:TICK, font:MONO } }
+            },
+            plugins: {
+                legend: { labels:{ color:'#7c6fa0', font:MONO } },
+                datalabels: {
+                    display: true, color:'#e2d9f3',
+                    font:{ family:'Inter', size:9, weight:'bold' },
+                    anchor:'end', align:'top', offset:6,
+                    formatter: (_,ctx) => ctx.dataset.pointLabels[ctx.dataIndex] || ''
+                }
+            }
+        }
+    });
+
+    // ── 5. T-s BRAYTON DIAGRAM (Biogas Engine) ────────────────────────
+    // Closed loop: 1(Inlet) → 2(Comp Out) → 3(Combustion) → 4(Exhaust) → 1
+    const b = brayton;
+    const ts_s   = [b.s1, b.s2, b.s3, b.s4, b.s1];
+    const ts_T   = [b.T1, b.T2, b.T3, b.T4, b.T1];
+    const ts_lbl = ['1 — Inlet', '2 — Comp Out', '3 — Combustion', '4 — Exhaust', ''];
+
+    tsChart = new Chart(document.getElementById('tsChart'), {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Biogas ICE Cycle',
+                data: ts_s.map((s,i) => ({ x:s, y:ts_T[i] })),
+                pointLabels: ts_lbl,
+                borderColor: '#c4b5fd',
+                backgroundColor: 'rgba(196,181,253,0.07)',
+                pointBackgroundColor: ['#f59e0b','#f59e0b','#f97316','#f97316','transparent'],
+                pointRadius: [7,7,7,7,0],
+                showLine: true, tension: 0.15, fill: true
+            }]
+        },
+        options: {
+            responsive: true, animation:{ duration:700 },
+            scales: {
+                x: { title:{ display:true, text:'Entropy s (kJ/kg·K)',  color:TICK, font:MONO }, grid:{ color:GRID }, ticks:{ color:TICK, font:MONO } },
+                y: { title:{ display:true, text:'Temperature T (K)',     color:TICK, font:MONO }, grid:{ color:GRID }, ticks:{ color:TICK, font:MONO } }
+            },
+            plugins: {
+                legend: { labels:{ color:'#7c6fa0', font:MONO } },
+                datalabels: {
+                    display: true, color:'#e2d9f3',
+                    font:{ family:'Inter', size:9, weight:'bold' },
+                    anchor:'end', align:'top', offset:6,
+                    formatter: (_,ctx) => ctx.dataset.pointLabels[ctx.dataIndex] || ''
+                }
+            }
+        }
+    });
+}
+</script>
+</body>
+</html>
